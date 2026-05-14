@@ -7,6 +7,7 @@ __pycache__/
 htmlcov/
 
 .env
+.env.*
 .venv/
 venv/
 env/

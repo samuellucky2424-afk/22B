@@ -18,12 +18,27 @@ DOWNLOAD_CHECKPOINTS="${DOWNLOAD_CHECKPOINTS:-1}"
 WAN_MODEL_REPO="${WAN_MODEL_REPO:-Wan-AI/Wan2.1-T2V-1.3B}"
 STREAMDIFFUSIONV2_HF_REPO="${STREAMDIFFUSIONV2_HF_REPO:-jerryfeng/StreamDiffusionV2}"
 TAEHV_URL="${TAEHV_URL:-https://github.com/madebyollin/taehv/raw/main/taew2_1.pth}"
+ENV_FILE="${ENV_FILE:-${PROJECT_ROOT}/.env.runpod}"
 
 cd "${PROJECT_ROOT}"
 
 log() {
   printf '[deploy] %s\n' "$*"
 }
+
+load_local_env() {
+  if [[ ! -f "${ENV_FILE}" ]]; then
+    return
+  fi
+
+  log "Loading local deployment environment from ${ENV_FILE}"
+  set -a
+  # shellcheck disable=SC1090
+  source "${ENV_FILE}"
+  set +a
+}
+
+load_local_env
 
 ensure_conda() {
   if command -v conda >/dev/null 2>&1; then
