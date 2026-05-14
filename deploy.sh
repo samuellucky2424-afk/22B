@@ -10,6 +10,8 @@ MINICONDA_INSTALLER="${MINICONDA_INSTALLER:-Miniconda3-latest-Linux-x86_64.sh}"
 MINICONDA_URL="${MINICONDA_URL:-https://repo.anaconda.com/miniconda/${MINICONDA_INSTALLER}}"
 CONDA_CHANNEL="${CONDA_CHANNEL:-conda-forge}"
 FLASHINFER_JIT_CACHE_INDEX="${FLASHINFER_JIT_CACHE_INDEX:-}"
+PYTORCH_INDEX_URL="${PYTORCH_INDEX_URL:-https://download.pytorch.org/whl/cu126}"
+FLASH_ATTN_VERSION="${FLASH_ATTN_VERSION:-2.7.4.post1}"
 
 cd "${PROJECT_ROOT}"
 
@@ -58,11 +60,21 @@ fi
 
 conda activate "${ENV_NAME}"
 
-log "Installing pinned CUDA 12.6 / PyTorch 2.6.0 / FlashInfer dependency stack"
+log "Installing pinned CUDA 12.6 / PyTorch 2.6.0 dependency stack"
 python -m pip install --upgrade pip setuptools wheel
+python -m pip install --index-url "${PYTORCH_INDEX_URL}" \
+  "torch==2.6.0" "torchvision==0.21.0" "torchaudio==2.6.0"
+
+log "Installing application/model dependencies"
 python -m pip install -r requirements.txt
 
 export FLASHINFER_CUDA_ARCH_LIST="${FLASHINFER_CUDA_ARCH_LIST:-8.6}"
+export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.6}"
+export MAX_JOBS="${MAX_JOBS:-4}"
+
+log "Installing flash-attn ${FLASH_ATTN_VERSION} with torch-visible build context"
+python -m pip install --no-build-isolation "flash-attn==${FLASH_ATTN_VERSION}"
+
 if [[ -n "${FLASHINFER_JIT_CACHE_INDEX}" ]]; then
   log "Attempting optional FlashInfer JIT cache install from ${FLASHINFER_JIT_CACHE_INDEX}"
   python -m pip install flashinfer-jit-cache --index-url "${FLASHINFER_JIT_CACHE_INDEX}" || \

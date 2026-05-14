@@ -21,7 +21,10 @@ Pillow==10.1.0
 mediapipe==0.10.14
 
 # Model stack.
-streamdiffusionv2[flash-attn]==0.1.0
+# deploy.sh installs flash-attn after PyTorch with --no-build-isolation; keeping
+# the StreamDiffusionV2 extra here lets pip try to build flash-attn before torch
+# is importable in the isolated build env.
+streamdiffusionv2==0.1.0
 diffusers==0.35.1
 transformers==4.54.0
 accelerate==1.10.1
