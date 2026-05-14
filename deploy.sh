@@ -14,6 +14,10 @@ PYTORCH_INDEX_URL="${PYTORCH_INDEX_URL:-https://download.pytorch.org/whl/cu126}"
 FLASH_ATTN_VERSION="${FLASH_ATTN_VERSION:-2.7.4.post1}"
 STREAMDIFFUSIONV2_VERSION="${STREAMDIFFUSIONV2_VERSION:-0.1.0}"
 STREAMDIFFUSIONV2_GIT_URL="${STREAMDIFFUSIONV2_GIT_URL:-git+https://github.com/chenfengxu714/StreamDiffusionV2.git}"
+DOWNLOAD_CHECKPOINTS="${DOWNLOAD_CHECKPOINTS:-1}"
+WAN_MODEL_REPO="${WAN_MODEL_REPO:-Wan-AI/Wan2.1-T2V-1.3B}"
+STREAMDIFFUSIONV2_HF_REPO="${STREAMDIFFUSIONV2_HF_REPO:-jerryfeng/StreamDiffusionV2}"
+TAEHV_URL="${TAEHV_URL:-https://github.com/madebyollin/taehv/raw/main/taew2_1.pth}"
 
 cd "${PROJECT_ROOT}"
 
@@ -111,15 +115,55 @@ log "Installing v2v-rt-backend package in editable mode"
 python -m pip install -e .
 
 export PYTHONUNBUFFERED=1
+export STREAMDIFFUSIONV2_ROOT="${STREAMDIFFUSIONV2_ROOT:-${PROJECT_ROOT}}"
+export HF_HOME="${HF_HOME:-${PROJECT_ROOT}/.hf-cache}"
 export FLASHINFER_CACHE_DIR="${FLASHINFER_CACHE_DIR:-${PROJECT_ROOT}/.flashinfer-cache}"
+mkdir -p "${HF_HOME}"
 mkdir -p "${FLASHINFER_CACHE_DIR}"
+
+download_checkpoints() {
+  if [[ "${DOWNLOAD_CHECKPOINTS}" != "1" ]]; then
+    log "DOWNLOAD_CHECKPOINTS=${DOWNLOAD_CHECKPOINTS}; skipping checkpoint download"
+    return
+  fi
+
+  log "Ensuring Wan base model exists under ${STREAMDIFFUSIONV2_ROOT}/wan_models"
+  mkdir -p "${STREAMDIFFUSIONV2_ROOT}/wan_models" "${PROJECT_ROOT}/ckpts"
+
+  if [[ ! -f "${STREAMDIFFUSIONV2_ROOT}/wan_models/Wan2.1-T2V-1.3B/config.json" ]]; then
+    huggingface-cli download --resume-download "${WAN_MODEL_REPO}" \
+      --local-dir "${STREAMDIFFUSIONV2_ROOT}/wan_models/Wan2.1-T2V-1.3B"
+  else
+    log "Wan base model already present"
+  fi
+
+  log "Ensuring StreamDiffusionV2 causal V2V checkpoint exists under ${PROJECT_ROOT}/ckpts"
+  if [[ ! -d "${PROJECT_ROOT}/ckpts/wan_causal_dmd_v2v" ]]; then
+    huggingface-cli download --resume-download "${STREAMDIFFUSIONV2_HF_REPO}" \
+      --local-dir "${PROJECT_ROOT}/ckpts" \
+      --include "wan_causal_dmd_v2v/*"
+  else
+    log "StreamDiffusionV2 causal V2V checkpoint already present"
+  fi
+
+  if [[ ! -f "${PROJECT_ROOT}/ckpts/taew2_1.pth" ]]; then
+    log "Downloading TAEHV checkpoint"
+    curl -L "${TAEHV_URL}" -o "${PROJECT_ROOT}/ckpts/taew2_1.pth"
+  else
+    log "TAEHV checkpoint already present"
+  fi
+}
+
+download_checkpoints
 
 log "Runtime sanity check"
 python - <<'PY'
 import importlib.metadata as metadata
+import os
 
 import torch
 
+print("streamdiffusionv2_root:", os.environ.get("STREAMDIFFUSIONV2_ROOT"))
 print("torch:", torch.__version__)
 print("torch_cuda:", torch.version.cuda)
 print("cuda_available:", torch.cuda.is_available())
