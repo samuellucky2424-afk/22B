@@ -19,6 +19,8 @@ WAN_MODEL_REPO="${WAN_MODEL_REPO:-Wan-AI/Wan2.1-T2V-1.3B}"
 STREAMDIFFUSIONV2_HF_REPO="${STREAMDIFFUSIONV2_HF_REPO:-jerryfeng/StreamDiffusionV2}"
 TAEHV_URL="${TAEHV_URL:-https://github.com/madebyollin/taehv/raw/main/taew2_1.pth}"
 ENV_FILE="${ENV_FILE:-${PROJECT_ROOT}/.env.runpod}"
+MODEL_ROOT="${MODEL_ROOT:-${PROJECT_ROOT}}"
+MIN_FREE_GB_FOR_CHECKPOINTS="${MIN_FREE_GB_FOR_CHECKPOINTS:-35}"
 
 cd "${PROJECT_ROOT}"
 
@@ -130,11 +132,65 @@ log "Installing v2v-rt-backend package in editable mode"
 python -m pip install -e .
 
 export PYTHONUNBUFFERED=1
-export STREAMDIFFUSIONV2_ROOT="${STREAMDIFFUSIONV2_ROOT:-${PROJECT_ROOT}}"
+export STREAMDIFFUSIONV2_ROOT="${STREAMDIFFUSIONV2_ROOT:-${MODEL_ROOT}}"
 export HF_HOME="${HF_HOME:-${PROJECT_ROOT}/.hf-cache}"
 export FLASHINFER_CACHE_DIR="${FLASHINFER_CACHE_DIR:-${PROJECT_ROOT}/.flashinfer-cache}"
 mkdir -p "${HF_HOME}"
 mkdir -p "${FLASHINFER_CACHE_DIR}"
+
+available_gb() {
+  df -Pk "$1" | awk 'NR==2 { printf "%.0f", $4 / 1024 / 1024 }'
+}
+
+ensure_model_links() {
+  mkdir -p "${MODEL_ROOT}" "${STREAMDIFFUSIONV2_ROOT}/wan_models" "${MODEL_ROOT}/ckpts"
+
+  if [[ "${MODEL_ROOT}" != "${PROJECT_ROOT}" ]]; then
+    if [[ ! -e "${PROJECT_ROOT}/wan_models" && ! -L "${PROJECT_ROOT}/wan_models" ]]; then
+      ln -s "${STREAMDIFFUSIONV2_ROOT}/wan_models" "${PROJECT_ROOT}/wan_models"
+    fi
+    if [[ ! -e "${PROJECT_ROOT}/ckpts" && ! -L "${PROJECT_ROOT}/ckpts" ]]; then
+      ln -s "${MODEL_ROOT}/ckpts" "${PROJECT_ROOT}/ckpts"
+    fi
+  fi
+}
+
+require_checkpoint_space() {
+  local free_gb
+  free_gb="$(available_gb "${MODEL_ROOT}")"
+  log "Model storage root: ${MODEL_ROOT} (${free_gb} GB free)"
+
+  if (( free_gb < MIN_FREE_GB_FOR_CHECKPOINTS )); then
+    cat >&2 <<EOF
+[deploy] Not enough free disk for first-time checkpoint download.
+[deploy] Need at least ${MIN_FREE_GB_FOR_CHECKPOINTS} GB free at MODEL_ROOT=${MODEL_ROOT}; found ${free_gb} GB.
+[deploy] Attach/increase RunPod storage, or rerun with MODEL_ROOT pointing at a larger mounted volume.
+EOF
+    exit 1
+  fi
+}
+
+wan_model_ready() {
+  local root="${STREAMDIFFUSIONV2_ROOT}/wan_models/Wan2.1-T2V-1.3B"
+  local required=(
+    "config.json"
+    "diffusion_pytorch_model.safetensors"
+    "Wan2.1_VAE.pth"
+    "models_t5_umt5-xxl-enc-bf16.pth"
+    "google/umt5-xxl/special_tokens_map.json"
+    "google/umt5-xxl/spiece.model"
+    "google/umt5-xxl/tokenizer.json"
+    "google/umt5-xxl/tokenizer_config.json"
+  )
+
+  for file in "${required[@]}"; do
+    if [[ ! -s "${root}/${file}" ]]; then
+      return 1
+    fi
+  done
+
+  return 0
+}
 
 download_checkpoints() {
   if [[ "${DOWNLOAD_CHECKPOINTS}" != "1" ]]; then
@@ -142,28 +198,56 @@ download_checkpoints() {
     return
   fi
 
-  log "Ensuring Wan base model exists under ${STREAMDIFFUSIONV2_ROOT}/wan_models"
-  mkdir -p "${STREAMDIFFUSIONV2_ROOT}/wan_models" "${PROJECT_ROOT}/ckpts"
+  ensure_model_links
+  require_checkpoint_space
 
-  if [[ ! -f "${STREAMDIFFUSIONV2_ROOT}/wan_models/Wan2.1-T2V-1.3B/config.json" ]]; then
-    huggingface-cli download --resume-download "${WAN_MODEL_REPO}" \
-      --local-dir "${STREAMDIFFUSIONV2_ROOT}/wan_models/Wan2.1-T2V-1.3B"
+  log "Ensuring Wan base model exists under ${STREAMDIFFUSIONV2_ROOT}/wan_models"
+  if ! wan_model_ready; then
+    WAN_MODEL_REPO="${WAN_MODEL_REPO}" \
+    WAN_LOCAL_DIR="${STREAMDIFFUSIONV2_ROOT}/wan_models/Wan2.1-T2V-1.3B" \
+    python - <<'PY'
+import os
+from huggingface_hub import snapshot_download
+
+snapshot_download(
+    repo_id=os.environ["WAN_MODEL_REPO"],
+    local_dir=os.environ["WAN_LOCAL_DIR"],
+    allow_patterns=[
+        "config.json",
+        "diffusion_pytorch_model.safetensors",
+        "Wan2.1_VAE.pth",
+        "models_t5_umt5-xxl-enc-bf16.pth",
+        "google/umt5-xxl/*",
+    ],
+    resume_download=True,
+)
+PY
   else
     log "Wan base model already present"
   fi
 
   log "Ensuring StreamDiffusionV2 causal V2V checkpoint exists under ${PROJECT_ROOT}/ckpts"
   if [[ ! -d "${PROJECT_ROOT}/ckpts/wan_causal_dmd_v2v" ]]; then
-    huggingface-cli download --resume-download "${STREAMDIFFUSIONV2_HF_REPO}" \
-      --local-dir "${PROJECT_ROOT}/ckpts" \
-      --include "wan_causal_dmd_v2v/*"
+    STREAMDIFFUSIONV2_HF_REPO="${STREAMDIFFUSIONV2_HF_REPO}" \
+    SDV2_LOCAL_DIR="${MODEL_ROOT}/ckpts" \
+    python - <<'PY'
+import os
+from huggingface_hub import snapshot_download
+
+snapshot_download(
+    repo_id=os.environ["STREAMDIFFUSIONV2_HF_REPO"],
+    local_dir=os.environ["SDV2_LOCAL_DIR"],
+    allow_patterns=["wan_causal_dmd_v2v/*"],
+    resume_download=True,
+)
+PY
   else
     log "StreamDiffusionV2 causal V2V checkpoint already present"
   fi
 
-  if [[ ! -f "${PROJECT_ROOT}/ckpts/taew2_1.pth" ]]; then
+  if [[ ! -f "${MODEL_ROOT}/ckpts/taew2_1.pth" ]]; then
     log "Downloading TAEHV checkpoint"
-    curl -L "${TAEHV_URL}" -o "${PROJECT_ROOT}/ckpts/taew2_1.pth"
+    curl -L "${TAEHV_URL}" -o "${MODEL_ROOT}/ckpts/taew2_1.pth"
   else
     log "TAEHV checkpoint already present"
   fi
