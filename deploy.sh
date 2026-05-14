@@ -9,6 +9,7 @@ MINICONDA_DIR="${MINICONDA_DIR:-${HOME}/miniconda3}"
 MINICONDA_INSTALLER="${MINICONDA_INSTALLER:-Miniconda3-latest-Linux-x86_64.sh}"
 MINICONDA_URL="${MINICONDA_URL:-https://repo.anaconda.com/miniconda/${MINICONDA_INSTALLER}}"
 CONDA_CHANNEL="${CONDA_CHANNEL:-conda-forge}"
+FLASHINFER_JIT_CACHE_INDEX="${FLASHINFER_JIT_CACHE_INDEX:-}"
 
 cd "${PROJECT_ROOT}"
 
@@ -60,6 +61,15 @@ conda activate "${ENV_NAME}"
 log "Installing pinned CUDA 12.6 / PyTorch 2.6.0 / FlashInfer dependency stack"
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install -r requirements.txt
+
+export FLASHINFER_CUDA_ARCH_LIST="${FLASHINFER_CUDA_ARCH_LIST:-8.6}"
+if [[ -n "${FLASHINFER_JIT_CACHE_INDEX}" ]]; then
+  log "Attempting optional FlashInfer JIT cache install from ${FLASHINFER_JIT_CACHE_INDEX}"
+  python -m pip install flashinfer-jit-cache --index-url "${FLASHINFER_JIT_CACHE_INDEX}" || \
+    log "Optional flashinfer-jit-cache wheel unavailable; continuing with runtime cache generation"
+else
+  log "No FLASHINFER_JIT_CACHE_INDEX set; FlashInfer will generate/cache kernels on first use"
+fi
 
 log "Ensuring StreamDiffusionV2 is installed explicitly"
 python -m pip install --upgrade --no-deps "streamdiffusionv2[flash-attn]==0.1.0"

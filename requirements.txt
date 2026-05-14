@@ -6,10 +6,10 @@ torch==2.6.0
 torchvision==0.21.0
 torchaudio==2.6.0
 
-# FlashInfer packages. The JIT cache index must match the CUDA wheel family.
+# FlashInfer packages. flashinfer-jit-cache is optional and is installed
+# opportunistically by deploy.sh only when a matching CUDA cache wheel exists.
 flashinfer-python==0.6.11
 flashinfer-cubin==0.6.11
-flashinfer-jit-cache
 
 # Streaming and media IO.
 fastapi==0.117.1
