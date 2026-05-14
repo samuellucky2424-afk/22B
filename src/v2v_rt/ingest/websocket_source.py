@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import cv2
 import numpy as np
@@ -23,12 +23,16 @@ class WebSocketFrameSource:
     server: ServerConfig
     slo: SLOConfig
     queue_size: int = 8
+    _queue: asyncio.Queue[FrameEnvelope] = field(init=False, repr=False)
+    _app: FastAPI = field(init=False, repr=False)
+    _server_task: asyncio.Task[None] | None = field(init=False, default=None, repr=False)
+    _frame_ids: dict[str, int] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self._queue: asyncio.Queue[FrameEnvelope] = asyncio.Queue(self.queue_size)
+        self._queue = asyncio.Queue(self.queue_size)
         self._app = FastAPI()
-        self._server_task: asyncio.Task[None] | None = None
-        self._frame_ids: dict[str, int] = {}
+        self._server_task = None
+        self._frame_ids = {}
         self._install_routes()
 
     def _install_routes(self) -> None:
