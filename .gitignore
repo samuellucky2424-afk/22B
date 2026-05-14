@@ -13,5 +13,9 @@ venv/
 env/
 
 .flashinfer-cache/
+.hf-cache/
+.hf-xet-cache/
+.tmp/
 ckpts/
+wan_models/
 *.log

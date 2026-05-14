@@ -21,6 +21,7 @@ TAEHV_URL="${TAEHV_URL:-https://github.com/madebyollin/taehv/raw/main/taew2_1.pt
 ENV_FILE="${ENV_FILE:-${PROJECT_ROOT}/.env.runpod}"
 MODEL_ROOT="${MODEL_ROOT:-${PROJECT_ROOT}}"
 MIN_FREE_GB_FOR_CHECKPOINTS="${MIN_FREE_GB_FOR_CHECKPOINTS:-35}"
+INSTALL_PROJECT="${INSTALL_PROJECT:-0}"
 
 cd "${PROJECT_ROOT}"
 
@@ -129,10 +130,8 @@ print("video_chunk:", VideoChunk)
 PY
 fi
 
-log "Installing v2v-rt-backend package in editable mode"
-python -m pip install -e .
-
 export PYTHONUNBUFFERED=1
+export PYTHONPATH="${PROJECT_ROOT}/src${PYTHONPATH:+:${PYTHONPATH}}"
 export STREAMDIFFUSIONV2_ROOT="${STREAMDIFFUSIONV2_ROOT:-${MODEL_ROOT}}"
 export HF_HOME="${HF_HOME:-${PROJECT_ROOT}/.hf-cache}"
 export HF_HUB_CACHE="${HF_HUB_CACHE:-${HF_HOME}/hub}"
@@ -144,6 +143,13 @@ export TMPDIR="${TMPDIR:-${MODEL_ROOT}/.tmp}"
 mkdir -p "${HF_HOME}" "${HF_HUB_CACHE}" "${HF_XET_CACHE}" "${TMPDIR}"
 mkdir -p "${FLASHINFER_CACHE_DIR}"
 
+if [[ "${INSTALL_PROJECT}" == "1" ]]; then
+  log "Installing v2v-rt-backend package in editable mode"
+  python -m pip install -e .
+else
+  log "Skipping editable install; using PYTHONPATH=${PYTHONPATH}"
+fi
+
 available_gb() {
   df -Pk "$1" | awk 'NR==2 { printf "%.0f", $4 / 1024 / 1024 }'
 }
@@ -152,6 +158,15 @@ ensure_model_links() {
   mkdir -p "${MODEL_ROOT}" "${STREAMDIFFUSIONV2_ROOT}/wan_models" "${MODEL_ROOT}/ckpts"
 
   if [[ "${MODEL_ROOT}" != "${PROJECT_ROOT}" ]]; then
+    if [[ -e "${PROJECT_ROOT}/wan_models" && ! -L "${PROJECT_ROOT}/wan_models" ]]; then
+      log "Moving existing workspace wan_models aside so MODEL_ROOT can own model weights"
+      mv "${PROJECT_ROOT}/wan_models" "${PROJECT_ROOT}/wan_models.workspace-stale.$(date +%s)"
+    fi
+    if [[ -e "${PROJECT_ROOT}/ckpts" && ! -L "${PROJECT_ROOT}/ckpts" ]]; then
+      log "Moving existing workspace ckpts aside so MODEL_ROOT can own checkpoints"
+      mv "${PROJECT_ROOT}/ckpts" "${PROJECT_ROOT}/ckpts.workspace-stale.$(date +%s)"
+    fi
+
     if [[ ! -e "${PROJECT_ROOT}/wan_models" && ! -L "${PROJECT_ROOT}/wan_models" ]]; then
       ln -s "${STREAMDIFFUSIONV2_ROOT}/wan_models" "${PROJECT_ROOT}/wan_models"
     fi
