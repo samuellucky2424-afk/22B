@@ -8,6 +8,7 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MINICONDA_DIR="${MINICONDA_DIR:-${HOME}/miniconda3}"
 MINICONDA_INSTALLER="${MINICONDA_INSTALLER:-Miniconda3-latest-Linux-x86_64.sh}"
 MINICONDA_URL="${MINICONDA_URL:-https://repo.anaconda.com/miniconda/${MINICONDA_INSTALLER}}"
+CONDA_CHANNEL="${CONDA_CHANNEL:-conda-forge}"
 
 cd "${PROJECT_ROOT}"
 
@@ -47,8 +48,9 @@ ensure_nvidia_runtime
 eval "$(conda shell.bash hook)"
 
 if ! conda env list | awk '{print $1}' | grep -qx "${ENV_NAME}"; then
-  log "Creating Conda environment ${ENV_NAME} with Python ${PYTHON_VERSION}"
-  conda create -y -n "${ENV_NAME}" "python=${PYTHON_VERSION}" pip git ffmpeg ninja cmake
+  log "Creating Conda environment ${ENV_NAME} with Python ${PYTHON_VERSION} from ${CONDA_CHANNEL}"
+  conda create -y --override-channels -c "${CONDA_CHANNEL}" \
+    -n "${ENV_NAME}" "python=${PYTHON_VERSION}" pip git ffmpeg ninja cmake
 else
   log "Using existing Conda environment ${ENV_NAME}"
 fi
