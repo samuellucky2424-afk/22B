@@ -90,6 +90,7 @@ python -m pip install --index-url "${PYTORCH_INDEX_URL}" \
 
 log "Installing application/model dependencies"
 python -m pip install -r requirements.txt
+python -m pip uninstall -y hf-xet || true
 
 export FLASHINFER_CUDA_ARCH_LIST="${FLASHINFER_CUDA_ARCH_LIST:-8.6}"
 export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.6}"
@@ -134,8 +135,13 @@ python -m pip install -e .
 export PYTHONUNBUFFERED=1
 export STREAMDIFFUSIONV2_ROOT="${STREAMDIFFUSIONV2_ROOT:-${MODEL_ROOT}}"
 export HF_HOME="${HF_HOME:-${PROJECT_ROOT}/.hf-cache}"
+export HF_HUB_CACHE="${HF_HUB_CACHE:-${HF_HOME}/hub}"
+export HF_XET_CACHE="${HF_XET_CACHE:-${MODEL_ROOT}/.hf-xet-cache}"
+export HF_HUB_DISABLE_XET="${HF_HUB_DISABLE_XET:-1}"
+export HF_HUB_ENABLE_HF_TRANSFER="${HF_HUB_ENABLE_HF_TRANSFER:-0}"
 export FLASHINFER_CACHE_DIR="${FLASHINFER_CACHE_DIR:-${PROJECT_ROOT}/.flashinfer-cache}"
-mkdir -p "${HF_HOME}"
+export TMPDIR="${TMPDIR:-${MODEL_ROOT}/.tmp}"
+mkdir -p "${HF_HOME}" "${HF_HUB_CACHE}" "${HF_XET_CACHE}" "${TMPDIR}"
 mkdir -p "${FLASHINFER_CACHE_DIR}"
 
 available_gb() {
@@ -207,20 +213,29 @@ download_checkpoints() {
     WAN_LOCAL_DIR="${STREAMDIFFUSIONV2_ROOT}/wan_models/Wan2.1-T2V-1.3B" \
     python - <<'PY'
 import os
-from huggingface_hub import snapshot_download
+from huggingface_hub import hf_hub_download
 
-snapshot_download(
-    repo_id=os.environ["WAN_MODEL_REPO"],
-    local_dir=os.environ["WAN_LOCAL_DIR"],
-    allow_patterns=[
-        "config.json",
-        "diffusion_pytorch_model.safetensors",
-        "Wan2.1_VAE.pth",
-        "models_t5_umt5-xxl-enc-bf16.pth",
-        "google/umt5-xxl/*",
-    ],
-    resume_download=True,
-)
+repo_id = os.environ["WAN_MODEL_REPO"]
+local_dir = os.environ["WAN_LOCAL_DIR"]
+files = [
+    "config.json",
+    "google/umt5-xxl/special_tokens_map.json",
+    "google/umt5-xxl/spiece.model",
+    "google/umt5-xxl/tokenizer.json",
+    "google/umt5-xxl/tokenizer_config.json",
+    "Wan2.1_VAE.pth",
+    "diffusion_pytorch_model.safetensors",
+    "models_t5_umt5-xxl-enc-bf16.pth",
+]
+
+for filename in files:
+    print(f"[deploy] downloading {filename}", flush=True)
+    hf_hub_download(
+        repo_id=repo_id,
+        filename=filename,
+        local_dir=local_dir,
+        resume_download=True,
+    )
 PY
   else
     log "Wan base model already present"
@@ -238,6 +253,7 @@ snapshot_download(
     repo_id=os.environ["STREAMDIFFUSIONV2_HF_REPO"],
     local_dir=os.environ["SDV2_LOCAL_DIR"],
     allow_patterns=["wan_causal_dmd_v2v/*"],
+    max_workers=1,
     resume_download=True,
 )
 PY
