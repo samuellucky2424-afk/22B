@@ -12,6 +12,8 @@ CONDA_CHANNEL="${CONDA_CHANNEL:-conda-forge}"
 FLASHINFER_JIT_CACHE_INDEX="${FLASHINFER_JIT_CACHE_INDEX:-}"
 PYTORCH_INDEX_URL="${PYTORCH_INDEX_URL:-https://download.pytorch.org/whl/cu126}"
 FLASH_ATTN_VERSION="${FLASH_ATTN_VERSION:-2.7.4.post1}"
+STREAMDIFFUSIONV2_VERSION="${STREAMDIFFUSIONV2_VERSION:-0.1.0}"
+STREAMDIFFUSIONV2_GIT_URL="${STREAMDIFFUSIONV2_GIT_URL:-git+https://github.com/chenfengxu714/StreamDiffusionV2.git}"
 
 cd "${PROJECT_ROOT}"
 
@@ -83,8 +85,27 @@ else
   log "No FLASHINFER_JIT_CACHE_INDEX set; FlashInfer will generate/cache kernels on first use"
 fi
 
-log "Ensuring StreamDiffusionV2 is installed explicitly"
-python -m pip install --upgrade --no-deps "streamdiffusionv2[flash-attn]==0.1.0"
+log "Ensuring StreamDiffusionV2 is installed and importable"
+python -m pip install --upgrade --no-deps "streamdiffusionv2==${STREAMDIFFUSIONV2_VERSION}"
+if ! python - <<'PY'
+from streamdiffusionv2 import StreamDiffusionV2Pipeline, VideoChunk
+
+print("streamdiffusionv2 import: ok")
+print("pipeline:", StreamDiffusionV2Pipeline)
+print("video_chunk:", VideoChunk)
+PY
+then
+  log "PyPI StreamDiffusionV2 install did not expose streamdiffusionv2; installing from official GitHub"
+  python -m pip uninstall -y streamdiffusionv2 || true
+  python -m pip install --no-deps "${STREAMDIFFUSIONV2_GIT_URL}"
+  python - <<'PY'
+from streamdiffusionv2 import StreamDiffusionV2Pipeline, VideoChunk
+
+print("streamdiffusionv2 import: ok")
+print("pipeline:", StreamDiffusionV2Pipeline)
+print("video_chunk:", VideoChunk)
+PY
+fi
 
 log "Installing v2v-rt-backend package in editable mode"
 python -m pip install -e .
