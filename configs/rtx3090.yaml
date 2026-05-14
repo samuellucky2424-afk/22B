@@ -1,0 +1,76 @@
+runtime:
+  device: cuda:0
+  dtype: float16
+  compile_models: true
+  cuda_memory_fraction: 0.92
+  warmup_batches: 3
+  channels_last: true
+  allow_tf32: true
+
+server:
+  host: 0.0.0.0
+  port: 8080
+  ingest_path: /ingest/{stream_id}
+  egress_path: /egress/{stream_id}
+  max_connections: 4
+
+slo:
+  ttff_ms: 500
+  frame_deadline_ms: 50
+  max_queue_ms: 12
+  max_batch_size: 2
+  drop_late_frames: true
+  target_fps: 20
+  min_fps: 12
+
+profiles:
+  - name: 480p20
+    width: 832
+    height: 480
+    fps: 20
+    max_batch_size: 2
+    denoise_steps: 2
+  - name: 448p24
+    width: 768
+    height: 448
+    fps: 24
+    max_batch_size: 2
+    denoise_steps: 2
+  - name: 360p30
+    width: 640
+    height: 360
+    fps: 30
+    max_batch_size: 3
+    denoise_steps: 1
+
+models:
+  streamdiffusion_checkpoint: ckpts/wan_causal_dmd_v2v
+  tiny_vae_checkpoint: ckpts/taew2_1.pth
+  controlnet_xs_checkpoint: ckpts/controlnet-xs
+  causal_dit_checkpoint: ckpts/causal_dit
+  prompt: "photorealistic webcam video, stable background, natural motion"
+  negative_prompt: "flicker, background drift, geometry warp, low quality"
+  static_background_path: assets/backgrounds/rtx3090_static_background.png
+  segmentation_model_selection: 1
+  segmentation_mask_threshold: 0.12
+  segmentation_feather_sigma: 1.2
+  segmentation_temporal_smoothing: 0.22
+  identity_anchor_enabled: true
+  identity_anchor_strength: 0.85
+  identity_anchor_rolling_window: 12
+  controlnet_strength: 0.85
+  background_lock_alpha: 0.95
+  temporal_window: 8
+  latent_scale: 0.18215
+
+optimization:
+  attention_backend: flashinfer
+  use_flashinfer_jit_cache: true
+  use_cuda_graphs: false
+  preallocate_workspace_mb: 512
+  enable_streamdiffusion_acceleration: true
+  enable_taehv: true
+  vae_precision: fp8_e4m3fn
+  dit_precision: fp8_e4m3fn
+  strict_fp8: false
+  max_vram_gb: 22.0

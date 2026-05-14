@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "v2v-rt-backend"
+version = "0.1.0"
+description = "Realtime V2V streaming backend scaffold for a single RTX 3090."
+requires-python = ">=3.10,<3.11"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["src"]

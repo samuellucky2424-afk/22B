@@ -1,0 +1,1 @@
+"""Structural-control adapters."""

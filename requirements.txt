@@ -1,0 +1,51 @@
+# CUDA 12.6 wheels. This matches streamdiffusionv2==0.1.0's PyTorch pins.
+--index-url https://download.pytorch.org/whl/cu126
+--extra-index-url https://pypi.org/simple
+--extra-index-url https://flashinfer.ai/whl/cu126
+torch==2.6.0
+torchvision==0.21.0
+torchaudio==2.6.0
+
+# FlashInfer packages. The JIT cache index must match the CUDA wheel family.
+flashinfer-python==0.6.11
+flashinfer-cubin==0.6.11
+flashinfer-jit-cache
+
+# Streaming and media IO.
+fastapi==0.117.1
+uvicorn[standard]==0.37.0
+websockets==15.0.1
+av==13.1.0
+opencv-python-headless==4.10.0.84
+Pillow==10.1.0
+mediapipe==0.10.14
+
+# Model stack.
+streamdiffusionv2[flash-attn]==0.1.0
+diffusers==0.35.1
+transformers==4.54.0
+accelerate==1.10.1
+safetensors==0.5.3
+huggingface-hub==0.34.4
+einops==0.8.1
+kornia==0.8.1
+imageio==2.37.0
+imageio-ffmpeg==0.6.0
+omegaconf==2.3.0
+ftfy==6.3.1
+sentencepiece==0.2.0
+markdown2==2.5.4
+regex==2024.11.6
+scikit-image==0.25.2
+
+# Serving, config, telemetry.
+numpy==1.24.4
+PyYAML==6.0.2
+pydantic==2.10.6
+pydantic-settings==2.9.1
+prometheus-client==0.22.1
+nvidia-ml-py==12.575.51
+
+# Dev smoke tests.
+pytest==8.4.0
+pytest-asyncio==0.26.0

@@ -1,0 +1,12 @@
+name: v2v-rt-backend
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip>=24.2
+  - ffmpeg
+  - git
+  - ninja
+  - cmake
+  - pip:
+      - -r requirements.txt
