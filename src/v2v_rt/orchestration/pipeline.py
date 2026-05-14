@@ -569,6 +569,9 @@ class RealtimeV2VPipeline:
             width=profile.width,
             fps=profile.fps,
             step=profile.denoise_steps,
+            use_taehv=config.optimization.enable_taehv,
+            use_tensorrt=config.optimization.enable_streamdiffusion_acceleration,
+            fast=config.optimization.enable_streamdiffusion_acceleration,
         )
 
         cls._enable_acceleration(stream, config)
@@ -581,6 +584,12 @@ class RealtimeV2VPipeline:
         if not config.optimization.enable_streamdiffusion_acceleration:
             LOGGER.warning(
                 "StreamDiffusionV2 acceleration is disabled; TAEHV/TensorRT fast path will not be used."
+            )
+            return
+
+        if bool(getattr(stream, "fast", False)) and bool(getattr(stream, "use_taehv", False)):
+            LOGGER.info(
+                "StreamDiffusionV2 acceleration was enabled during construction; skipping rebuild."
             )
             return
 

@@ -2,7 +2,7 @@ runtime:
   device: cuda:0
   dtype: float16
   compile_models: true
-  cuda_memory_fraction: 0.92
+  cuda_memory_fraction: 0.98
   warmup_batches: 3
   channels_last: true
   allow_tf32: true
